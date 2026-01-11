@@ -4,206 +4,318 @@ import { OrbitControls, Text, Float, MeshDistortMaterial, Stars, Sparkles } from
 import axios from 'axios';
 import './App.css';
 
-// --- 3D Components ---
-
-function Crystal({ priceChange, riskLevel }) {
+// --- 3D Background Component ---
+function PricingCrystal({ riskLevel }) {
   const meshRef = useRef();
 
-  // Color logic based on Risk
   const getColor = () => {
-    if (riskLevel === 'High') return '#ef4444'; // Red
-    if (riskLevel === 'Medium') return '#f59e0b'; // Orange
-    return '#10b981'; // Green
+    if (riskLevel === 'High') return '#ef4444';
+    if (riskLevel === 'Medium') return '#f59e0b';
+    return '#10b981';
   };
 
   useFrame((state) => {
     const time = state.clock.getElapsedTime();
-    meshRef.current.rotation.x = time * 0.2;
-    meshRef.current.rotation.y = time * 0.3;
-    // Pulse effect
-    const scale = 1 + Math.sin(time * 2) * 0.05;
+    meshRef.current.rotation.x = time * 0.15;
+    meshRef.current.rotation.y = time * 0.2;
+    const scale = 1 + Math.sin(time * 1.5) * 0.03;
     meshRef.current.scale.set(scale, scale, scale);
   });
 
   return (
     <Float speed={2} rotationIntensity={0.5} floatIntensity={0.5}>
       <mesh ref={meshRef}>
-        <icosahedronGeometry args={[2, 0]} /> {/* Low poly look */}
+        <icosahedronGeometry args={[2.5, 0]} />
         <MeshDistortMaterial
           color={getColor()}
-          distort={0.4}
-          speed={2}
-          roughness={0}
-          metalness={0.9}
+          distort={0.3}
+          speed={1.5}
+          roughness={0.1}
+          metalness={0.8}
           emissive={getColor()}
           emissiveIntensity={0.2}
+          wireframe={false}
         />
       </mesh>
     </Float>
   );
 }
 
-function FloatingText({ text, position, size = 1 }) {
+function Global3DBackground({ riskLevel }) {
   return (
-    <Float speed={1.5} rotationIntensity={0.2} floatIntensity={0.2}>
-      <Text
-        position={position}
-        fontSize={size}
-        color="white"
-        anchorX="center"
-        anchorY="middle"
-        font="https://fonts.gstatic.com/s/inter/v12/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyfAZ9hjp-Ek-_EeA.woff"
-      >
-        {text}
-      </Text>
-    </Float>
+    <div className="canvas-container">
+      <Canvas camera={{ position: [0, 0, 7], fov: 45 }}>
+        <color attach="background" args={['#0b0f19']} />
+        <ambientLight intensity={0.5} />
+        <pointLight position={[10, 10, 10]} intensity={1} color="#3b82f6" />
+        <pointLight position={[-10, -10, -10]} intensity={0.5} color="#ec4899" />
+        <Stars radius={100} depth={50} count={3000} factor={4} saturation={0} fade speed={0.5} />
+        <Sparkles count={40} scale={12} size={3} speed={0.3} opacity={0.4} color="#60a5fa" />
+        <PricingCrystal riskLevel={riskLevel} />
+        <OrbitControls enableZoom={false} autoRotate autoRotateSpeed={0.3} />
+      </Canvas>
+    </div>
   );
 }
 
 // --- UI Components ---
 
-function ControlPanel({ priceChange, setPriceChange, onSimulate, isLoading }) {
-  return (
-    <div className="panel left-panel fade-in">
-      <h2>🎛️ Controls</h2>
-      <div className="control-group">
-        <label>Price Adjustment</label>
-        <div className="slider-container">
-          <input
-            type="range"
-            min="-50"
-            max="50"
-            value={priceChange}
-            onChange={(e) => setPriceChange(Number(e.target.value))}
-          />
-          <span className="value-display">{priceChange > 0 ? '+' : ''}{priceChange}%</span>
-        </div>
-      </div>
-
-      <button onClick={onSimulate} disabled={isLoading} className="simulate-btn">
-        {isLoading ? 'Calculating...' : '🔮 Simulate Scenario'}
-      </button>
-    </div>
-  );
-}
-
-function StatsPanel({ results }) {
-  if (!results) return null;
+function Sidebar({ activePage, setActivePage }) {
+  const menuItems = [
+    { id: 'data', label: '📊 Data Studio' },
+    { id: 'sim', label: '🧪 Simulation Lab' },
+    { id: 'export', label: '📑 Strategy Export' },
+  ];
 
   return (
-    <div className="panel right-panel fade-in">
-      <h2>📊 Projected Impact</h2>
-
-      <div className="stat-card">
-        <div className="label">Revenue Uplift</div>
-        <div className="value" style={{ color: results.revenue_uplift_pct >= 0 ? '#34d399' : '#f87171' }}>
-          {results.revenue_uplift_pct >= 0 ? '▲' : '▼'} {Math.abs(results.revenue_uplift_pct).toFixed(1)}%
+    <div className="sidebar">
+      <div className="sidebar-header">
+        <div className="logo-icon">💎</div>
+        <div className="logo-text">
+          <h1>Pricing AI</h1>
+          <span>ENTERPRISE v2.1</span>
         </div>
       </div>
 
-      <div className="stat-card">
-        <div className="label">Churn Risk</div>
-        <div className="value" style={{ color: '#f87171' }}>
-          {results.churn_probability}
-        </div>
-        <div className="sub-value">Probability</div>
-      </div>
+      <nav>
+        {menuItems.map((item) => (
+          <button
+            key={item.id}
+            className={`nav-item ${activePage === item.id ? 'active' : ''}`}
+            onClick={() => setActivePage(item.id)}
+          >
+            {item.label}
+          </button>
+        ))}
+      </nav>
 
-      <div className="stat-card">
-        <div className="label">Risk Assessment</div>
-        <div className="risk-badge" data-level={results.risk_label}>
-          {results.risk_label}
-        </div>
+      <div className="sidebar-footer">
+        <div className="status-dot"></div> Connected to Brain
       </div>
     </div>
   );
 }
 
-// --- Main App ---
+function MetricCard({ label, value, subValue, type = 'neutral' }) {
+  let colorClass = 'neutral';
+  if (type === 'good') colorClass = 'text-green';
+  if (type === 'bad') colorClass = 'text-red';
+
+  return (
+    <div className="metric-card">
+      <div className="metric-label">{label}</div>
+      <div className={`metric-value ${colorClass}`}>{value}</div>
+      {subValue && <div className="metric-sub">{subValue}</div>}
+    </div>
+  );
+}
+
+// --- Pages ---
+
+function DataStudio() {
+  return (
+    <div className="page-content fade-in">
+      <h1 className="page-title">Client Data Studio</h1>
+
+      <div className="grid-2-col">
+        <div className="card upload-section">
+          <h2>📂 Upload Data</h2>
+          <div className="upload-box">
+            <span className="icon">☁️</span>
+            <p>Drag and drop client CSV here</p>
+            <button className="secondary-btn">Browse Files</button>
+          </div>
+        </div>
+
+        <div className="card demo-section">
+          <h2>🧪 Demo Mode</h2>
+          <div className="info-box">
+            Don't have data? Generate a synthetic SaaS dataset to test the AI models immediately.
+          </div>
+          <button className="primary-btn full-width">
+            🎲 Generate & Load Dummy Data
+          </button>
+        </div>
+      </div>
+
+      <div className="card chart-placeholder">
+        <h2>🔍 Market Segmentation Analysis</h2>
+        <div className="placeholder-graph">
+          [Interactive Plotly Chart: Revenue Share by Segment would appear here]
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SimulationLab({ priceChange, setPriceChange, onSimulate, results, loading }) {
+  return (
+    <div className="page-content fade-in">
+      <div className="header-row">
+        <h1 className="page-title">Pricing Simulation Lab</h1>
+        {results && <div className="badge">Risk: {results.risk_label}</div>}
+      </div>
+
+      <div className="sim-layout">
+        {/* Left Column: Controls */}
+        <div className="sim-controls">
+          <div className="card">
+            <h2>🎚️ Settings</h2>
+
+            <div className="input-group">
+              <label>Segment</label>
+              <select className="styled-select">
+                <option>SMB</option>
+                <option>Enterprise</option>
+                <option>Mid-Market</option>
+              </select>
+            </div>
+
+            <div className="current-price-box">
+              <div className="label">CURRENT PRICE</div>
+              <div className="price">$100.00</div>
+            </div>
+
+            <div className="slider-group">
+              <div className="slider-header">
+                <label>Price Adjustment</label>
+                <span className="slider-val">{priceChange > 0 ? '+' : ''}{priceChange}%</span>
+              </div>
+              <input
+                type="range"
+                min="-50" max="50"
+                value={priceChange}
+                onChange={(e) => setPriceChange(Number(e.target.value))}
+              />
+            </div>
+
+            <div className="divider"></div>
+
+            <h3>✨ AI Auto-Pilot</h3>
+            <button
+              className="primary-btn full-width"
+              onClick={onSimulate}
+              disabled={loading}
+            >
+              {loading ? '🧠 Crunching Numbers...' : '⚡ Find Optimal Price'}
+            </button>
+          </div>
+        </div>
+
+        {/* Right Column: Results */}
+        <div className="sim-results">
+          {results ? (
+            <>
+              <div className="metrics-grid">
+                <MetricCard
+                  label="New Price"
+                  value={`$${results.new_price.toFixed(2)}`}
+                  subValue={`${priceChange}%`}
+                />
+                <MetricCard
+                  label="Revenue Uplift"
+                  value={`${results.revenue_uplift_pct >= 0 ? '+' : ''}${results.revenue_uplift_pct.toFixed(1)}%`}
+                  type={results.revenue_uplift_pct >= 0 ? 'good' : 'bad'}
+                />
+                <MetricCard
+                  label="Churn Probability"
+                  value={results.churn_probability}
+                  type="bad"
+                  subValue="Risk Level"
+                />
+              </div>
+
+              <div className="card eli5-box">
+                <div className="eli5-title">🧩 Strategic Insight</div>
+                <p>
+                  For the <b>SMB</b> segment, a <b>{Math.abs(priceChange)}% {priceChange > 0 ? 'increase' : 'decrease'}</b> in price moves the needle.
+                </p>
+                <br />
+                <ul>
+                  <li>Expected revenue shift: <b>{results.revenue_uplift_pct.toFixed(1)}%</b></li>
+                  <li>This is categorized as a <b>{results.risk_label}</b> move.</li>
+                </ul>
+              </div>
+            </>
+          ) : (
+            <div className="card empty-state">
+              <div className="empty-icon">👈</div>
+              <h3>Ready to Simulate</h3>
+              <p>Adjust the slider and click "Find Optimal Price" to see the AI predictions.</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// --- Main App Root ---
 
 export default function App() {
+  const [activePage, setActivePage] = useState('sim');
   const [priceChange, setPriceChange] = useState(0);
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(false);
   const [riskLevel, setRiskLevel] = useState('Low');
 
-  // Initial Simulation
-  useEffect(() => {
-    // Basic mock init, real app would fetch current user state
-  }, []);
-
   const handleSimulate = async () => {
     setLoading(true);
     try {
-      // Hardcoded "current state" for demo purposes, matching the Python demo data logic
       const payload = {
-        segment: "SMB", // Defaulting to SMB
+        segment: "SMB",
         current_price: 100.0,
         current_discount: 0.1,
         current_units: 1000,
         price_change_pct: priceChange
       };
-
-      // Ensure your backend is running on port 8000
+      // Connect to Python Backend
       const response = await axios.post('http://localhost:8000/simulate', payload);
       const data = response.data;
 
-      // Transform data for UI
       setResults({
         revenue_uplift_pct: data.revenue_uplift_pct,
         churn_probability: (data.churn_probability * 100).toFixed(1) + '%',
         risk_label: data.risk_label,
         new_price: data.new_price
       });
-      setRiskLevel(data.risk_label); // Update 3D color
-
+      setRiskLevel(data.risk_label);
     } catch (error) {
-      console.error("Simulation error:", error);
-      alert("Failed to connect to AI Backend. Make sure 'uvicorn app.main:app' is running!");
+      console.error(error);
+      alert("Backend offline? Ensure uvicorn is running on port 8000");
     }
     setLoading(false);
   };
 
   return (
-    <div className="app-container">
-      {/* 3D Background */}
-      <div className="canvas-layer">
-        <Canvas camera={{ position: [0, 0, 6], fov: 45 }}>
-          <color attach="background" args={['#050505']} />
-          <ambientLight intensity={0.5} />
-          <pointLight position={[10, 10, 10]} intensity={1} color="#4da6ff" />
-          <pointLight position={[-10, -10, -10]} intensity={0.5} color="#ff00ff" />
+    <div className="app-shell">
+      {/* 3D Layer acts as wallpaper */}
+      <Global3DBackground riskLevel={riskLevel} />
 
-          <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade speed={1} />
-          <Sparkles count={50} scale={10} size={4} speed={0.4} opacity={0.5} color="#4da6ff" />
+      {/* Sidebar */}
+      <Sidebar activePage={activePage} setActivePage={setActivePage} />
 
-          <Crystal priceChange={priceChange} riskLevel={riskLevel} />
-
-          <FloatingText text={`${priceChange > 0 ? '+' : ''}${priceChange}%`} position={[0, 2.5, 0]} size={0.5} />
-          {results && (
-            <FloatingText text={`$${results.new_price.toFixed(2)}`} position={[0, -2.5, 0]} size={0.3} />
-          )}
-
-          <OrbitControls enableZoom={false} autoRotate autoRotateSpeed={0.5} />
-        </Canvas>
-      </div>
-
-      {/* UI Overlay */}
-      <div className="ui-layer">
-        <header className="app-header">
-          <h1>🔮 AI Pricing Consultant</h1>
-        </header>
-
-        <main className="main-layout">
-          <ControlPanel
+      {/* Main Content Area */}
+      <main className="main-content">
+        {activePage === 'data' && <DataStudio />}
+        {activePage === 'sim' && (
+          <SimulationLab
             priceChange={priceChange}
             setPriceChange={setPriceChange}
             onSimulate={handleSimulate}
-            isLoading={loading}
+            results={results}
+            loading={loading}
           />
-          <StatsPanel results={results} />
-        </main>
-      </div>
+        )}
+        {activePage === 'export' && (
+          <div className="page-content fade-in">
+            <h1 className="page-title">Executive Report</h1>
+            <div className="card">
+              <p>Simulation results must be generated first.</p>
+            </div>
+          </div>
+        )}
+      </main>
     </div>
   );
 }
