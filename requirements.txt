@@ -12,3 +12,4 @@ python-jose[cryptography]
 passlib[bcrypt]
 matplotlib
 seaborn
+plotly
