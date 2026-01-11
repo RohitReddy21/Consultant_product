@@ -131,10 +131,15 @@ async def get_analytics():
     rev_by_seg = global_df.groupby('segment')['revenue'].sum().to_dict()
     churn_rate = global_df['churned'].mean()
     
+    # Scatter Data (Sample 100 points for performance)
+    scatter_df = global_df.sample(min(100, len(global_df)))
+    scatter_data = scatter_df[['price', 'units_sold', 'segment']].to_dict(orient='records')
+    
     return {
         "revenue_by_segment": rev_by_seg,
         "total_revenue": global_df['revenue'].sum(),
-        "churn_rate": churn_rate
+        "churn_rate": churn_rate,
+        "scatter_data": scatter_data
     }
 
 @app.post("/simulate")

@@ -110,24 +110,51 @@ function MetricCard({ label, value, subValue, type = 'neutral' }) {
   );
 }
 
-// --- Charts (Simulated CSS Bar Chart) ---
-function RevenueChart({ data }) {
-  if (!data) return null;
-  const segments = Object.keys(data);
-  const maxVal = Math.max(...Object.values(data));
+// --- Charts (CSS Scatter Plot) ---
+function ScatterPlot({ data }) {
+  if (!data || data.length === 0) return <div>No Scatter Data</div>;
+
+  // Determine scales
+  const maxPrice = Math.max(...data.map(d => d.price));
+  const maxUnits = Math.max(...data.map(d => d.units_sold));
+
+  const getColor = (seg) => {
+    if (seg === 'Enterprise') return '#3b82f6'; // Blue
+    if (seg === 'Mid') return '#ec4899'; // Pink
+    return '#10b981'; // Green (SMB)
+  };
 
   return (
-    <div className="chart-container">
-      {segments.map(seg => {
-        const height = (data[seg] / maxVal) * 100 + '%';
-        return (
-          <div key={seg} className="bar-group">
-            <div className="bar" style={{ height: height }}></div>
-            <div className="bar-label">{seg}</div>
-            <div className="bar-val">${(data[seg] / 1000).toFixed(0)}k</div>
-          </div>
-        )
-      })}
+    <div style={{ height: '100%', width: '100%', padding: '20px' }}>
+      <div className="scatter-plot">
+        {/* Axis Labels */}
+        <div className="scatter-axis-label y-label">Units Sold (Demand)</div>
+        <div className="scatter-axis-label x-label">Price Point ($)</div>
+
+        {data.map((point, i) => {
+          const left = (point.price / maxPrice) * 90 + '%'; // 90% to keep inside
+          const bottom = (point.units_sold / maxUnits) * 90 + '%';
+
+          return (
+            <div
+              key={i}
+              className="scatter-point"
+              style={{
+                left: left,
+                bottom: bottom,
+                backgroundColor: getColor(point.segment)
+              }}
+              title={`${point.segment}: $${point.price.toFixed(0)} -> ${point.units_sold} units`}
+            />
+          )
+        })}
+      </div>
+
+      <div className="legend">
+        <div className="legend-item"><div className="dot" style={{ background: '#10b981' }}></div> SMB</div>
+        <div className="legend-item"><div className="dot" style={{ background: '#ec4899' }}></div> Mid-Market</div>
+        <div className="legend-item"><div className="dot" style={{ background: '#3b82f6' }}></div> Enterprise</div>
+      </div>
     </div>
   );
 }
@@ -189,10 +216,10 @@ function DataStudio({ onTrain, loading, onUpload }) {
       </div>
 
       <div className="card chart-placeholder">
-        <h2>🔍 Market Segmentation Analysis</h2>
+        <h2>🔍 Price vs Demand Elasticity (Scatter)</h2>
         {analytics ? (
-          <div style={{ height: '250px', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', gap: '30px' }}>
-            <RevenueChart data={analytics.revenue_by_segment} />
+          <div style={{ height: '300px', width: '100%' }}>
+            <ScatterPlot data={analytics.scatter_data} />
           </div>
         ) : (
           <div className="placeholder-graph">Loading Analysis...</div>
@@ -366,7 +393,7 @@ function StrategyExport({ results }) {
 // --- Main App Root ---
 
 export default function App() {
-  const [activePage, setActivePage] = useState('sim');
+  const [activePage, setActivePage] = useState('data'); // CHANGED DEFAULT TO DATA
   const [priceChange, setPriceChange] = useState(0);
   const [currentPrice, setCurrentPrice] = useState(100.00);
   const [results, setResults] = useState(null);
