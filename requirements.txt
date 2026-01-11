@@ -1,0 +1,14 @@
+fastapi
+uvicorn
+pandas
+numpy
+scikit-learn
+streamlit
+reportlab
+python-multipart
+scipy
+pydantic
+python-jose[cryptography]
+passlib[bcrypt]
+matplotlib
+seaborn
