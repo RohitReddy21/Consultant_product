@@ -110,9 +110,46 @@ function MetricCard({ label, value, subValue, type = 'neutral' }) {
   );
 }
 
+// --- Charts (Simulated CSS Bar Chart) ---
+function RevenueChart({ data }) {
+  if (!data) return null;
+  const segments = Object.keys(data);
+  const maxVal = Math.max(...Object.values(data));
+
+  return (
+    <div className="chart-container">
+      {segments.map(seg => {
+        const height = (data[seg] / maxVal) * 100 + '%';
+        return (
+          <div key={seg} className="bar-group">
+            <div className="bar" style={{ height: height }}></div>
+            <div className="bar-label">{seg}</div>
+            <div className="bar-val">${(data[seg] / 1000).toFixed(0)}k</div>
+          </div>
+        )
+      })}
+    </div>
+  );
+}
+
 // --- Pages ---
 
-function DataStudio({ onTrain, loading }) {
+function DataStudio({ onTrain, loading, onUpload }) {
+  const [analytics, setAnalytics] = useState(null);
+
+  useEffect(() => {
+    // Fetch analytics on load
+    axios.get('http://localhost:8000/analytics')
+      .then(res => setAnalytics(res.data))
+      .catch(err => console.error(err));
+  }, [loading]); // Refresh when loading done
+
+  const handleFileChange = (e) => {
+    if (e.target.files[0]) {
+      onUpload(e.target.files[0]);
+    }
+  };
+
   return (
     <div className="page-content fade-in">
       <h1 className="page-title">Client Data Studio</h1>
@@ -123,38 +160,49 @@ function DataStudio({ onTrain, loading }) {
           <div className="upload-box">
             <span className="icon">☁️</span>
             <p>Drag and drop client CSV here</p>
-            <button className="secondary-btn" onClick={() => alert("Upload feature coming in v2.2")}>Browse Files</button>
+            <input
+              type="file"
+              id="file-upload"
+              style={{ display: 'none' }}
+              onChange={handleFileChange}
+              accept=".csv"
+            />
+            <label htmlFor="file-upload" className="secondary-btn">
+              Browse Files
+            </label>
           </div>
         </div>
 
         <div className="card demo-section">
           <h2>🧪 Demo Mode</h2>
           <div className="info-box">
-            Don't have data? Generate a synthetic SaaS dataset to test the AI models immediately.
+            Don't have data? Generate a synthetic SaaS dataset.
           </div>
           <button
             className="primary-btn full-width"
             onClick={onTrain}
             disabled={loading}
           >
-            {loading ? '🧠 Training AI Models...' : '🎲 Generate & Load Dummy Data'}
+            {loading ? '🧠 Training...' : '🎲 Generate & Load Dummy Data'}
           </button>
         </div>
       </div>
 
       <div className="card chart-placeholder">
         <h2>🔍 Market Segmentation Analysis</h2>
-        <div className="placeholder-graph">
-          <div style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
-            [Analysis Charts require real data]
+        {analytics ? (
+          <div style={{ height: '250px', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', gap: '30px' }}>
+            <RevenueChart data={analytics.revenue_by_segment} />
           </div>
-        </div>
+        ) : (
+          <div className="placeholder-graph">Loading Analysis...</div>
+        )}
       </div>
     </div>
   );
 }
 
-function SimulationLab({ priceChange, setPriceChange, onSimulate, results, loading }) {
+function SimulationLab({ priceChange, setPriceChange, onSimulate, results, loading, currentPrice, setCurrentPrice }) {
   return (
     <div className="page-content fade-in">
       <div className="header-row">
@@ -178,8 +226,13 @@ function SimulationLab({ priceChange, setPriceChange, onSimulate, results, loadi
             </div>
 
             <div className="current-price-box">
-              <div className="label">CURRENT PRICE</div>
-              <div className="price">$100.00</div>
+              <div className="label">CURRENT PRICE ($)</div>
+              <input
+                type="number"
+                value={currentPrice}
+                onChange={(e) => setCurrentPrice(Number(e.target.value))}
+                className="price-input"
+              />
             </div>
 
             <div className="slider-group">
@@ -203,7 +256,7 @@ function SimulationLab({ priceChange, setPriceChange, onSimulate, results, loadi
               onClick={onSimulate}
               disabled={loading}
             >
-              {loading ? '🧠 Crunching Numbers...' : '⚡ Find Optimal Price'}
+              {loading ? '🧠 Crunching...' : '⚡ Find Optimal Price'}
             </button>
           </div>
         </div>
@@ -234,7 +287,7 @@ function SimulationLab({ priceChange, setPriceChange, onSimulate, results, loadi
               <div className="card eli5-box">
                 <div className="eli5-title">🧩 Strategic Insight</div>
                 <p>
-                  For the <b>SMB</b> segment, a <b>{Math.abs(priceChange)}% {priceChange > 0 ? 'increase' : 'decrease'}</b> in price moves the needle.
+                  A <b>{Math.abs(priceChange)}% {priceChange > 0 ? 'increase' : 'decrease'}</b> changes price from <b>${currentPrice}</b> to <b>${results.new_price.toFixed(2)}</b>.
                 </p>
                 <br />
                 <ul>
@@ -247,7 +300,7 @@ function SimulationLab({ priceChange, setPriceChange, onSimulate, results, loadi
             <div className="card empty-state">
               <div className="empty-icon">👈</div>
               <h3>Ready to Simulate</h3>
-              <p>Adjust the slider and click "Find Optimal Price" to see the AI predictions.</p>
+              <p>Adjust the slider to see AI predictions.</p>
             </div>
           )}
         </div>
@@ -256,27 +309,84 @@ function SimulationLab({ priceChange, setPriceChange, onSimulate, results, loadi
   );
 }
 
+function StrategyExport({ results }) {
+  const handleDownload = async () => {
+    try {
+      const response = await axios.post('http://localhost:8000/generate_report', { results }, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'Strategy_Report.pdf');
+      document.body.appendChild(link);
+      link.click();
+    } catch (error) {
+      console.error("Download failed", error);
+      alert("Error generating PDF");
+    }
+  };
+
+  if (!results) {
+    return (
+      <div className="page-content fade-in">
+        <h1 className="page-title">Executive Report</h1>
+        <div className="card empty-state">
+          <h3>No Data Available</h3>
+          <p>Please run a simulation in the "Simulation Lab" first.</p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="page-content fade-in">
+      <h1 className="page-title">Executive Report</h1>
+      <div className="card" style={{ textAlign: 'center', padding: '50px' }}>
+        <h2>📑 Strategy Ready</h2>
+        <p>Your AI-generated consultant report is ready for download.</p>
+        <br />
+        <div className="metrics-grid" style={{ maxWidth: '600px', margin: '0 auto' }}>
+          <div className="metric-card">
+            <div className="metric-label">Proposed Price</div>
+            <div className="metric-value">${results.new_price.toFixed(2)}</div>
+          </div>
+          <div className="metric-card">
+            <div className="metric-label">Projected Revenue</div>
+            <div className="metric-value text-green">+{results.revenue_uplift_pct.toFixed(1)}%</div>
+          </div>
+        </div>
+        <br /><br />
+        <button className="primary-btn" onClick={handleDownload} style={{ fontSize: '1.2rem', padding: '16px 32px' }}>
+          📄 Download Official PDF Report
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // --- Main App Root ---
 
 export default function App() {
   const [activePage, setActivePage] = useState('sim');
   const [priceChange, setPriceChange] = useState(0);
+  const [currentPrice, setCurrentPrice] = useState(100.00);
   const [results, setResults] = useState(null);
   const [simLoading, setSimLoading] = useState(false);
   const [trainLoading, setTrainLoading] = useState(false);
   const [riskLevel, setRiskLevel] = useState('Low');
+
+  // Load analytics if needed...
 
   const handleSimulate = async () => {
     setSimLoading(true);
     try {
       const payload = {
         segment: "SMB",
-        current_price: 100.0,
+        current_price: currentPrice,
         current_discount: 0.1,
         current_units: 1000,
         price_change_pct: priceChange
       };
-      // Connect to Python Backend
+
       const response = await axios.post('http://localhost:8000/simulate', payload);
       const data = response.data;
 
@@ -289,7 +399,7 @@ export default function App() {
       setRiskLevel(data.risk_label);
     } catch (error) {
       console.error(error);
-      alert("Backend offline? Ensure uvicorn is running on port 8000");
+      alert("Backend offline?");
     }
     setSimLoading(false);
   };
@@ -298,28 +408,39 @@ export default function App() {
     setTrainLoading(true);
     try {
       await axios.post('http://localhost:8000/train_models');
-      alert("✅ Success! New synthetic data generated and AI models retrained.");
+      alert("✅ Data Generated & Models Retrained!");
     } catch (error) {
-      console.error(error);
-      alert("Error training models. Check backend console.");
+      alert("Training failed");
+    }
+    setTrainLoading(false);
+  };
+
+  const handleUpload = async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      setTrainLoading(true);
+      await axios.post('http://localhost:8000/upload_data', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      alert("✅ File Uploaded & Processed!");
+    } catch (error) {
+      alert("Upload failed");
     }
     setTrainLoading(false);
   };
 
   return (
     <div className="app-shell">
-      {/* 3D Layer acts as wallpaper */}
       <Global3DBackground riskLevel={riskLevel} />
-
-      {/* Sidebar */}
       <Sidebar activePage={activePage} setActivePage={setActivePage} />
 
-      {/* Main Content Area */}
       <main className="main-content">
         {activePage === 'data' && (
           <DataStudio
             onTrain={handleTrain}
             loading={trainLoading}
+            onUpload={handleUpload}
           />
         )}
         {activePage === 'sim' && (
@@ -329,15 +450,12 @@ export default function App() {
             onSimulate={handleSimulate}
             results={results}
             loading={simLoading}
+            currentPrice={currentPrice}
+            setCurrentPrice={setCurrentPrice}
           />
         )}
         {activePage === 'export' && (
-          <div className="page-content fade-in">
-            <h1 className="page-title">Executive Report</h1>
-            <div className="card">
-              <p>Simulation results must be generated first.</p>
-            </div>
-          </div>
+          <StrategyExport results={results} />
         )}
       </main>
     </div>
