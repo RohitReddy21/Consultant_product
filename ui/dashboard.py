@@ -129,13 +129,24 @@ st.markdown("""
 
 # --- Session State ---
 if 'df' not in st.session_state:
-    st.session_state.df = None
+    # Auto-initialize with synthetic data for instant gratification
+    os.makedirs("data/raw", exist_ok=True)
+    st.session_state.df = generate_synthetic_data(2000)
+    
 if 'revenue_model' not in st.session_state:
     st.session_state.revenue_model = RevenueModel()
+    # Train immediately
+    if st.session_state.df is not None:
+         st.session_state.revenue_model.train(st.session_state.df)
+
 if 'churn_model' not in st.session_state:
     st.session_state.churn_model = ChurnModel()
+    # Train immediately
+    if st.session_state.df is not None:
+        st.session_state.churn_model.train(st.session_state.df)
+
 if 'models_trained' not in st.session_state:
-    st.session_state.models_trained = False
+    st.session_state.models_trained = True
 
 # --- Helper: ELI5 Generator ---
 def generate_eli5_summary(segment, price_change, result):
