@@ -112,7 +112,7 @@ function MetricCard({ label, value, subValue, type = 'neutral' }) {
 
 // --- Pages ---
 
-function DataStudio() {
+function DataStudio({ onTrain, loading }) {
   return (
     <div className="page-content fade-in">
       <h1 className="page-title">Client Data Studio</h1>
@@ -123,7 +123,7 @@ function DataStudio() {
           <div className="upload-box">
             <span className="icon">☁️</span>
             <p>Drag and drop client CSV here</p>
-            <button className="secondary-btn">Browse Files</button>
+            <button className="secondary-btn" onClick={() => alert("Upload feature coming in v2.2")}>Browse Files</button>
           </div>
         </div>
 
@@ -132,8 +132,12 @@ function DataStudio() {
           <div className="info-box">
             Don't have data? Generate a synthetic SaaS dataset to test the AI models immediately.
           </div>
-          <button className="primary-btn full-width">
-            🎲 Generate & Load Dummy Data
+          <button
+            className="primary-btn full-width"
+            onClick={onTrain}
+            disabled={loading}
+          >
+            {loading ? '🧠 Training AI Models...' : '🎲 Generate & Load Dummy Data'}
           </button>
         </div>
       </div>
@@ -141,7 +145,9 @@ function DataStudio() {
       <div className="card chart-placeholder">
         <h2>🔍 Market Segmentation Analysis</h2>
         <div className="placeholder-graph">
-          [Interactive Plotly Chart: Revenue Share by Segment would appear here]
+          <div style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
+            [Analysis Charts require real data]
+          </div>
         </div>
       </div>
     </div>
@@ -256,11 +262,12 @@ export default function App() {
   const [activePage, setActivePage] = useState('sim');
   const [priceChange, setPriceChange] = useState(0);
   const [results, setResults] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [simLoading, setSimLoading] = useState(false);
+  const [trainLoading, setTrainLoading] = useState(false);
   const [riskLevel, setRiskLevel] = useState('Low');
 
   const handleSimulate = async () => {
-    setLoading(true);
+    setSimLoading(true);
     try {
       const payload = {
         segment: "SMB",
@@ -284,7 +291,19 @@ export default function App() {
       console.error(error);
       alert("Backend offline? Ensure uvicorn is running on port 8000");
     }
-    setLoading(false);
+    setSimLoading(false);
+  };
+
+  const handleTrain = async () => {
+    setTrainLoading(true);
+    try {
+      await axios.post('http://localhost:8000/train_models');
+      alert("✅ Success! New synthetic data generated and AI models retrained.");
+    } catch (error) {
+      console.error(error);
+      alert("Error training models. Check backend console.");
+    }
+    setTrainLoading(false);
   };
 
   return (
@@ -297,14 +316,19 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="main-content">
-        {activePage === 'data' && <DataStudio />}
+        {activePage === 'data' && (
+          <DataStudio
+            onTrain={handleTrain}
+            loading={trainLoading}
+          />
+        )}
         {activePage === 'sim' && (
           <SimulationLab
             priceChange={priceChange}
             setPriceChange={setPriceChange}
             onSimulate={handleSimulate}
             results={results}
-            loading={loading}
+            loading={simLoading}
           />
         )}
         {activePage === 'export' && (
