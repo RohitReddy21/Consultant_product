@@ -1,4 +1,5 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import shutil
 import os
@@ -8,11 +9,28 @@ from services.segmentation import perform_segmentation
 from models.revenue_model import RevenueModel
 from models.churn_model import ChurnModel
 from services.simulator import PricingSimulator
+from services.data_generator import generate_synthetic_data
 from app.auth import create_access_token, get_current_user, verify_password, get_password_hash
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi import Depends, status
 
 app = FastAPI(title="AI Pricing Strategy Advisor API")
+
+# Allow CORS for React Frontend
+origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:5174",
+    "http://127.0.0.1:5174",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Global instances (in a real app, use a proper model registry or dependency injection)
 revenue_model = RevenueModel()
@@ -36,6 +54,19 @@ fake_users_db = {
         "hashed_password": get_password_hash("secret")
     }
 }
+
+@app.on_event("startup")
+async def startup_event():
+    print("🚀 API Startup: Generating synthetic data and training models...")
+    try:
+        # Generate data
+        df = generate_synthetic_data(2000)
+        # Train
+        revenue_model.train(df)
+        churn_model.train(df)
+        print("✅ Models trained and ready on startup!")
+    except Exception as e:
+        print(f"❌ Startup training failed: {e}")
 
 @app.post("/token")
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
@@ -69,11 +100,12 @@ async def train_models():
     # real app would track dataset IDs
     files = os.listdir(DATA_DIR)
     if not files:
-        raise HTTPException(status_code=400, detail="No data uploaded")
-    
-    filepath = os.path.join(DATA_DIR, files[0]) # take first
-    df = preprocess_pipeline(filepath)
-    df, _, _ = perform_segmentation(df)
+         # Fallback to synthetic if no files
+        df = generate_synthetic_data(2000)
+    else:
+        filepath = os.path.join(DATA_DIR, files[0]) # take first
+        df = preprocess_pipeline(filepath)
+        df, _, _ = perform_segmentation(df)
     
     revenue_model.train(df)
     churn_model.train(df)
@@ -83,7 +115,10 @@ async def train_models():
 @app.post("/simulate")
 async def simulate(request: SimulationRequest):
     if revenue_model.model is None:
-        raise HTTPException(status_code=400, detail="Models not trained")
+         # Emergency auto-train if not ready (should be covered by startup, but safe fallback)
+        df = generate_synthetic_data(1000)
+        revenue_model.train(df)
+        churn_model.train(df)
         
     summary = {
         'segment': request.segment,
